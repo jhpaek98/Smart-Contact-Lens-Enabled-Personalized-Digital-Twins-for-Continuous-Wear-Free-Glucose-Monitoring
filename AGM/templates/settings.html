@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Settings</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .theme-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 40px;
+    }
+
+    .theme-option {
+      display: flex;
+      gap: 8px;
+      padding: 14px;
+      border: 2px solid #ccc;
+      border-radius: 10px;
+      cursor: pointer;
+      align-items: center;
+    }
+
+    .theme-option.selected {
+      border: 4px solid black;
+    }
+
+    .color-swatch {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      border: 1px solid #999;
+    }
+
+    .back-btn {
+      font-size: 16px;
+      margin-top: 30px;
+      display: block;
+      text-align: center;
+      color: black;
+      text-decoration: none;
+    }
+
+    .title {
+      text-align: center;
+      margin-top: 40px;
+      font-size: 24px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="title">🎨 Select Color Theme</div>
+
+  <div class="theme-grid">
+
+    <!-- Default theme -->
+    <div class="theme-option" data-main="#007acc" data-sub="#cce7f5"
+         onclick="setTheme('#007acc', '#cce7f5')">
+      <div class="color-swatch" style="background-color:#007acc;"></div>
+      <div class="color-swatch" style="background-color:#cce7f5;"></div>
+    </div>
+
+    <!-- Orange -->
+    <div class="theme-option" data-main="#d35400" data-sub="#f9e1d0"
+         onclick="setTheme('#d35400', '#f9e1d0')">
+      <div class="color-swatch" style="background-color:#d35400;"></div>
+      <div class="color-swatch" style="background-color:#f9e1d0;"></div>
+    </div>
+
+    <!-- Red -->
+    <div class="theme-option" data-main="#c0392b" data-sub="#f5cccc"
+         onclick="setTheme('#c0392b', '#f5cccc')">
+      <div class="color-swatch" style="background-color:#c0392b;"></div>
+      <div class="color-swatch" style="background-color:#f5cccc;"></div>
+    </div>
+
+    <!-- Green -->
+    <div class="theme-option" data-main="#27ae60" data-sub="#d1f5e1"
+         onclick="setTheme('#27ae60', '#d1f5e1')">
+      <div class="color-swatch" style="background-color:#27ae60;"></div>
+      <div class="color-swatch" style="background-color:#d1f5e1;"></div>
+    </div>
+
+    <!-- Purple -->
+    <div class="theme-option" data-main="#8e44ad" data-sub="#edd4fa"
+         onclick="setTheme('#8e44ad', '#edd4fa')">
+      <div class="color-swatch" style="background-color:#8e44ad;"></div>
+      <div class="color-swatch" style="background-color:#edd4fa;"></div>
+    </div>
+
+    <!-- Black -->
+    <div class="theme-option" data-main="#2c3e50" data-sub="#ecf0f1"
+         onclick="setTheme('#2c3e50', '#ecf0f1')">
+      <div class="color-swatch" style="background-color:#2c3e50;"></div>
+      <div class="color-swatch" style="background-color:#ecf0f1;"></div>
+    </div>
+
+  </div>
+
+  <a class="back-btn" href="/">← Back to dashboard</a>
+
+  <script>
+    function setTheme(main, sub) {
+      const theme = { main, sub };
+      localStorage.setItem('theme', JSON.stringify(theme));
+
+      document.documentElement.style.setProperty('--main-color', main);
+      document.documentElement.style.setProperty('--sub-color', sub);
+
+      console.log('Theme set:', theme);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const theme = localStorage.getItem('theme');
+      if (theme) {
+        const { main, sub } = JSON.parse(theme);
+        document.documentElement.style.setProperty('--main-color', main);
+        document.documentElement.style.setProperty('--sub-color', sub);
+      }
+    });
+  </script>
+
+</body>
+</html>

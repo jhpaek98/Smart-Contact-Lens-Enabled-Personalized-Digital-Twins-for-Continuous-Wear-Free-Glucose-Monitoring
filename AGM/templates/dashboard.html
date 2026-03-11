@@ -1,0 +1,2525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>  
+  <meta charset="UTF-8">
+  <title>AI Agent for Health Monitoring</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ css_version }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1"></script>
+
+  <script>
+    if (window.Chart && window['chartjs-plugin-annotation']) {
+      Chart.register(window['chartjs-plugin-annotation']);
+    }
+  </script>
+
+  <script>
+    window.carbLib = {
+      veryLow: [
+        'chicken breast','egg','tofu','salmon','beef','pork','cheese','avocado','broccoli',
+        'spinach','lettuce','cucumber','zucchini','mushroom','cauliflower','olive','unsweetened yogurt','plain yogurt','greek yogurt',
+        'almond','walnut','cashew','nut','olive oil','butter'
+      ],
+      low: [
+        'strawberry','blueberry','raspberry','blackberry','tomato','bell pepper','asparagus','eggplant',
+        'shrimp','tuna','turkey','plain milk','soy milk'
+      ],
+      mediumLow: [
+        'apple','pear','orange','peach','plum','kiwi','cherry','nectarine','grapefruit',
+        'whole milk','carrot','onion','green peas'
+      ],
+      medium: [
+        'banana','grape','mango','pineapple','papaya','fig','dates','sweetened yogurt', 'bread',
+        'granola','muesli','corn','pasta salad','fruit juice','smoothie','trail mix', 'whole grain bread'
+      ],
+      mediumHigh: [
+        'white potato','sweet potato','yam','oats','oatmeal','bagel',
+        'tortilla','pita bread','brown rice','quinoa','couscous'
+      ],
+      high: [
+        'white rice','white bread','noodle','ramen','udon','pasta','cereal', 'pizza', 'rice',
+        'cake','cookie','ice cream','chips','chocolate bar','croissant','muffin','donut','pancake','waffle','soda','candy'
+      ]
+    };
+  </script>
+</head>
+
+<script>
+  window.addEventListener('DOMContentLoaded', () => {
+    const ta = document.querySelector(".chat-box textarea[name='message']");
+    if (ta) {
+      if (document.activeElement === ta) ta.blur();
+      ta.addEventListener('focus', (e) => {
+      }, { once: true });
+    }
+  });
+</script>
+
+<body>
+  <header>
+    <h1></h1>
+  </header>
+
+  <div style="position: absolute; top: 10px; right: 20px; display: flex; flex-direction: column; gap: 8px;">
+    <script>
+      function openDefaultSettings() {
+        window.location.href = "/settings";
+      }
+
+      function openUserInfo() {
+        alert("The user information page is under construction.");
+      }
+    </script>
+  </div>
+
+  <div class="nav-select-wrap">
+    <label for="navSelect" class="sr-only">Select tab</label>
+    <select id="navSelect" aria-label="Select tab">
+      <option value="/?tab=chat"        {% if tab == 'chat' %}selected{% endif %}>💬 GPT Chatting</option>
+      <option value="/?tab=record"      {% if tab == 'record' %}selected{% endif %}>📊 Graph Upload</option>
+      <option value="/?tab=history"     {% if tab == 'history' %}selected{% endif %}>🕓 Chat History</option>
+      <option value="/?tab=monitoring"  {% if tab == 'monitoring' %}selected{% endif %}>📡 Glucose Data</option>
+      <option value="/?tab=export"      {% if tab == 'export' %}selected{% endif %}>📤 Graph Download</option>
+      <option value="/?tab=featureex"   {% if tab == 'featureex' %}selected{% endif %}>🤖 Feature Extraction</option>
+      <option value="/?tab=machine"     {% if tab == 'machine' %}selected{% endif %}>🧠 ML Model Training</option>
+      <option value="/?tab=prediction"  {% if tab == 'prediction' %}selected{% endif %}>🔮 Prediction Results</option>
+      <option value="/?tab=report"      {% if tab == 'report' %}selected{% endif %}>📄 Reports</option>
+      <option value="/?tab=scheduler"   {% if tab == 'scheduler' %}selected{% endif %}>📒 Glucose Scheduler</option>
+    </select>
+    <noscript>
+      <div class="tabs-fallback">
+        <a href="/?tab=chat">💬 GPT Chatting</a>
+        <a href="/?tab=record">📊 Graph Upload</a>
+        <a href="/?tab=history">🕓 Chat History</a>
+        <a href="/?tab=monitoring">📡 Glucose Data</a>
+        <a href="/?tab=export">📤 Graph Download</a>
+        <a href="/?tab=featureex">🤖 Feature Extraction</a>
+        <a href="/?tab=machine">🧠 ML Model Training</a>
+        <a href="/?tab=prediction">🔮 Prediction Results</a>
+        <a href="/?tab=report">📄 Reports</a>
+        <a href="/?tab=scheduler">📒 Glucose Scheduler</a>
+      </div>
+    </noscript>
+  </div>
+
+  <div class="content">
+
+{%- if tab == 'chat' -%}
+<div class="chat-box" style="display:flex; flex-direction:column; height:80vh; max-height:80vh;">
+
+  <div class="chat-history" id="chat-messages"
+       style="flex:1; overflow-y:auto; padding:12px; border:1px solid #ddd; border-radius:12px; background:#fff;">
+
+    {%- for chat in chat_history -%}
+      {%- if chat.role == 'user' -%}
+        <div class="chat-row" style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+          <div style="display:flex; flex-direction:column; align-items:flex-end;">
+            <div class="chat-bubble user" style="background-color:#e2e3e5; padding:10px 14px; border-radius:16px; max-width:80%; white-space:normal; word-break:break-word;">
+              
+              {% if chat.image_url %}
+              <div style="margin-bottom:8px;">
+                <img src="{{ chat.image_url }}" alt="uploaded image" style="max-width:220px; border-radius:8px; display:block;">
+              </div>
+              {% endif %}
+
+              {{ chat.content.replace('\n', '<br>') | trim | safe }}
+            </div>
+
+            <div style="display:flex; gap:6px; margin-top:4px; align-items:center;">
+              <span class="chat-emoji">🧑</span>
+              {%- if chat.type -%}
+                <span class="chat-tag" style="font-size:0.75em; background-color:#f0f0f0; padding:2px 6px; border-radius:8px;">
+                  {{ chat.type }}
+                </span>
+              {%- endif -%}
+            </div>
+          </div>
+        </div>
+
+      {%- elif chat.role == 'assistant' -%}
+        <div class="chat-row" style="display:flex; justify-content:flex-start; margin-bottom:12px;">
+          <div style="display:flex; flex-direction:column; align-items:flex-start;">
+            <div class="chat-bubble assistant"
+                 style="padding:10px 14px; border-radius:16px; max-width:80%; white-space:normal; word-break:break-word;
+                 background-color:
+                  {% if chat.type == 'Guideline' %}#fddede
+                  {% elif chat.type == 'Event Added' %}#d5ecf9
+                  {% elif chat.type == 'Analysis Request' %}#d6f5e8
+                  {% else %}#cce7f5
+                  {% endif %};">
+
+              {% if chat.image_url %}
+              <div style="margin-bottom:8px;">
+                <img src="{{ chat.image_url }}" alt="uploaded image" style="max-width:220px; border-radius:8px; display:block;">
+              </div>
+              {% endif %}
+
+              {{ chat.content.replace('\n', '<br>') | trim | safe }}
+            </div>
+
+            <div style="display:flex; gap:6px; margin-top:4px; align-items:center;">
+              <span class="chat-emoji">
+                <img src="/static/icons/assistant.png" alt="assistant" style="width:20px; height:20px; border-radius:50%;">
+              </span>
+              {%- if chat.type -%}
+                <span class="chat-tag" style="font-size:0.75em; background-color:#f0f0f0; padding:2px 6px; border-radius:8px;">
+                  {{ chat.type }}
+                </span>
+              {%- endif -%}
+            </div>
+          </div>
+        </div>
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+
+  <form id="chat-form" class="chat-input" enctype="multipart/form-data"
+        style="display:flex; gap:8px; align-items:center; margin-top:10px;">
+
+    <label style="cursor:pointer; display:flex; align-items:center;">
+      <img src="/static/uploads/camera.jpg" style="width:24px; height:24px; opacity:0.8;">
+      <input type="file" id="chat-image" name="image" accept="image/*" style="display:none;">
+    </label>
+
+    <textarea id="chat-message" name="message" placeholder="Type a message" required
+              style="flex:1; height:50px;"></textarea>
+
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <button type="submit">Enter</button>
+      <button type="button" class="record-btn" style="background-color:#27ae60;">Record</button>
+    </div>
+  </form>
+
+  <div id="image-preview-box" style="display:none; margin-top:8px;">
+    <img id="image-preview" style="max-width:180px; border-radius:8px; display:block; margin-bottom:6px;">
+    <button type="button" id="remove-image-btn">Remove</button>
+  </div>
+</div>
+
+{%- elif tab == 'record' -%}
+
+    <div class="upload-form">
+      <form action="/uploadfile" method="post" enctype="multipart/form-data">
+        <select name="biomarker" id="biomarkerSelectUpload" required>
+          <option value="" disabled selected>Select biomarker</option>
+          <option value="Blood Glucose">Blood Glucose</option>
+          <option value="Uric Acid">Uric Acid</option>
+          <option value="Intraocular Pressure">Intraocular Pressure</option>
+        </select>
+
+        <select name="task_type" id="taskTypeSelectUpload" required>
+          <option value="" disabled selected>Select task type</option>
+        </select>
+
+        <select name="disease_status" id="diseaseStatusSelectUpload" required>
+          <option value="" disabled selected>Select disease status</option>
+        </select>
+
+        <input type="text" name="subject_id" id="subjectField" placeholder="Enter subject ID" required>
+        <input type="text" name="title" placeholder="Enter graph title" required>
+        <input type="file" name="file" accept=".csv,.xlsx" required>
+        <button type="submit">Upload</button>
+      </form>
+    </div>
+
+    <div class="record-grid">
+      {%- for g in uploaded_graphs -%}
+      <div class="record-item">
+        <div class="record-meta">
+          <strong>Biomarker:</strong> {{ g.biomarker }} &nbsp;
+          <strong>Disease Status:</strong> {{ g.disease_status }} &nbsp;
+          <strong>Task Type:</strong> {{ g.task_type }} &nbsp;
+          <strong>Subject ID:</strong> {{ g.subject_id }} &nbsp;
+          <strong>Title:</strong> {{ g.title }}
+        </div>
+        <div class="chart-container">
+          <canvas id="chart-{{ loop.index }}"></canvas>
+        </div>
+        {%- if g.title in events -%}
+        <div class="event-list">
+          <strong>Events:</strong>
+          <ul>
+            {%- for e in events[g.title] -%}
+              <li>{{ e.type }}: {{ e.start }} min ~ {{ e.end }} min</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {%- endif -%}
+        <div class="record-actions" style="margin-top: 12px; text-align: right;">
+          <form action="/deletefile" method="post" style="display: inline;">
+            <input type="hidden" name="filename" value="{{ g.filename }}">
+            <button type="submit" style="background-color: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer;">
+              Delete
+            </button>
+          </form>
+        </div>
+      </div>
+      {%- endfor -%}
+    </div>
+
+    <script>
+      const taskTypeOptions = {
+        "Blood Glucose": ["General"],
+        "Uric Acid": ["General"],
+        "Intraocular Pressure": ["Electronic Device Use", "Head Position", "Body Position"]
+      };
+
+      const diseaseStatusOptions = {
+        "Blood Glucose": ["General", "Diabetes"],
+        "Uric Acid": ["General", "Hyperuricemia"],
+        "Intraocular Pressure": ["General", "Glaucoma", "Myopia"]
+      };
+
+      const biomarkerSelect = document.getElementById("biomarkerSelectUpload");
+      const taskTypeSelect = document.getElementById("taskTypeSelectUpload");
+      const diseaseStatusSelect = document.getElementById("diseaseStatusSelectUpload");
+      
+      biomarkerSelect.addEventListener("change", () => {
+        const selected = biomarkerSelect.value;
+
+        taskTypeSelect.innerHTML = '<option value="" disabled selected>Select task type</option>';
+        (taskTypeOptions[selected] || []).forEach(option => {
+          const opt = document.createElement("option");
+          opt.value = option;
+          opt.textContent = option;
+          taskTypeSelect.appendChild(opt);
+        });
+
+        diseaseStatusSelect.innerHTML = '<option value="" disabled selected>Select disease status</option>';
+        (diseaseStatusOptions[selected] || []).forEach(option => {
+          const opt = document.createElement("option");
+          opt.value = option;
+          opt.textContent = option;
+          diseaseStatusSelect.appendChild(opt);
+        });
+      });
+
+      const graphs = {{ uploaded_graphs | tojson }};
+      const events = {{ events | tojson }};
+
+      graphs.forEach((g, i) => {
+        const ctx = document.getElementById(`chart-${i+1}`).getContext('2d');
+        fetch(`/data/${g.filename}`).then(res => res.json()).then(result => {
+          const data = {
+            labels: result.labels,
+            datasets: [{
+              label: result.label,
+              data: result.values,
+              fill: false,
+              borderColor: 'teal',
+              tension: 0.2
+            }]
+          };
+
+          const annotations = (result.events || []).reduce((acc, e, idx) => {
+            acc[`box${idx}`] = {
+              type: 'box',
+              xMin: Number(e.start),
+              xMax: Number(e.end),
+              backgroundColor: 'rgba(255, 99, 132, 0.2)',
+              borderWidth: 0,
+              label: {
+                content: e.type,
+                enabled: true,
+                backgroundColor: 'transparent',
+                color: 'red',
+                font: {
+                  size: 14,
+                  weight: 'bold'
+                },
+                yAdjust: 60
+              }
+            };
+            return acc;
+          }, {});
+
+          new Chart(ctx, {
+            type: 'line',
+            data: data,
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              plugins: {
+                legend: { display: true },
+                title: { display: true, text: g.title },
+                annotation: { annotations: annotations }
+              },
+              scales: {
+                x: { title: { display: true, text: 'Time' } },
+                y: { title: { display: true, text: result.label } }
+              }
+            }
+          });
+        });
+      });
+    </script>
+
+    {% elif tab == 'history' %}
+    <div class="chat-history-log">
+      {% for item in chat_history %}
+        {% if item.role == 'user' %}
+        <div class="chat user">
+          <div class="chat-bubble">{{ item.content }}
+            <span class="timestamp">{{ item.timestamp }}</span>
+          </div>
+        </div>
+        {% elif item.role == 'assistant' %}
+        <div class="chat assistant">
+          <div class="chat-bubble">{{ item.content }}
+            <span class="timestamp">{{ item.timestamp }}</span>
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+
+      <form action="/delete_chat_log" method="post" style="margin-top: 20px; text-align: center;">
+        <button type="submit" style="background-color: #e74c3c;">Delete All Records</button>
+      </form>
+    </div>
+
+    {% elif tab == 'monitoring' %}
+    <div class="monitoring-controls">
+      <select id="biomarkerSelect">
+        <option value="">Select biomarker</option>
+        {% for biomarker in biomarker_map.keys() %}
+          <option value="{{ biomarker }}">{{ biomarker }}</option>
+        {% endfor %}
+      </select>
+
+      <select id="subjectSelect" disabled>
+        <option value="">Select subject ID</option>
+      </select>
+
+      <select id="taskTypeFilter">
+        <option value="">Select task type</option>
+      </select>
+
+      <select id="diseaseStatusFilter">
+        <option value="">Select disease status</option>
+      </select>
+    </div>
+
+    <div class="record-grid" id="monitoringGraphs">
+      {% for g in uploaded_graphs %}
+      <div class="record-item"
+           data-biomarker="{{ g.biomarker }}"
+           data-subject="{{ g.subject_id }}"
+           data-task="{{ g.task_type }}"
+           data-disease="{{ g.disease_status }}">
+        <div class="record-meta">
+          <strong>Biomarker:</strong> {{ g.biomarker }} &nbsp;
+          <strong>Disease Status:</strong> {{ g.disease_status }} &nbsp;
+          <strong>Task Type:</strong> {{ g.task_type }} &nbsp;
+          <strong>Subject ID:</strong> {{ g.subject_id }} &nbsp;
+          <strong>Title:</strong> {{ g.title }}
+        </div>
+        <div class="chart-container">
+          <canvas id="monitoring-chart-{{ loop.index }}"></canvas>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <script>
+      const biomarkerMap = {{ biomarker_map | tojson }};
+      const subjectSelect = document.getElementById("subjectSelect");
+      const biomarkerSelect = document.getElementById("biomarkerSelect");
+      const taskTypeSelect = document.getElementById("taskTypeFilter");
+      const diseaseStatusSelect = document.getElementById("diseaseStatusFilter");
+
+      const monitoringGraphs = {{ uploaded_graphs | tojson }};
+      const monitoringEvents = {{ events | tojson }};
+
+      biomarkerSelect.addEventListener("change", () => {
+        const selected = biomarkerSelect.value;
+        subjectSelect.innerHTML = "<option value=''>Select subject ID</option>";
+        subjectSelect.disabled = !selected;
+
+        if (selected && biomarkerMap[selected]) {
+          biomarkerMap[selected].forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s;
+            opt.textContent = s;
+            subjectSelect.appendChild(opt);
+          });
+        }
+
+        filterMonitoring();
+      });
+
+      subjectSelect.addEventListener("change", filterMonitoring);
+      taskTypeSelect.addEventListener("change", filterMonitoring);
+      diseaseStatusSelect.addEventListener("change", filterMonitoring);
+
+      function filterMonitoring() {
+        const b = biomarkerSelect.value;
+        const s = subjectSelect.value;
+        const t = taskTypeSelect.value;
+        const d = diseaseStatusSelect.value;
+
+        const items = document.querySelectorAll("#monitoringGraphs .record-item");
+
+        items.forEach(item => {
+          const show =
+            (!b || item.dataset.biomarker === b) &&
+            (!s || item.dataset.subject === s) &&
+            (!t || item.dataset.task === t) &&
+            (!d || item.dataset.disease === d);
+          item.style.display = show ? "block" : "none";
+        });
+      }
+
+      const taskSet = new Set();
+      const diseaseSet = new Set();
+      monitoringGraphs.forEach(g => {
+        taskSet.add(g.task_type);
+        diseaseSet.add(g.disease_status);
+      });
+
+      [...taskSet].forEach(task => {
+        const opt = document.createElement("option");
+        opt.value = task;
+        opt.textContent = task;
+        taskTypeSelect.appendChild(opt);
+      });
+
+      [...diseaseSet].forEach(ds => {
+        const opt = document.createElement("option");
+        opt.value = ds;
+        opt.textContent = ds;
+        diseaseStatusSelect.appendChild(opt);
+      });
+
+      monitoringGraphs.forEach((g, i) => {
+        const canvas = document.getElementById(`monitoring-chart-${i + 1}`);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        fetch(`/data/${g.filename}`).then(res => res.json()).then(result => {
+          const data = {
+            labels: result.labels,
+            datasets: [{
+              label: result.label,
+              data: result.values,
+              fill: false,
+              borderColor: 'teal',
+              tension: 0.2
+            }]
+          };
+
+          const annotations = (result.events || []).reduce((acc, e, idx) => {
+            acc[`box${idx}`] = {
+              type: 'box',
+              xMin: Number(e.start),
+              xMax: Number(e.end),
+              backgroundColor: 'rgba(255, 99, 132, 0.2)',
+              borderWidth: 0,
+              label: {
+                content: e.type,
+                enabled: true,
+                backgroundColor: 'transparent',
+                color: 'red',
+                font: {
+                  size: 14,
+                  weight: 'bold'
+                },
+                yAdjust: 60
+              }
+            };
+            return acc;
+          }, {});
+
+          new Chart(ctx, {
+            type: 'line',
+            data: data,
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              plugins: {
+                legend: { display: true },
+                title: { display: true, text: g.title },
+                annotation: { annotations: annotations }
+              },
+              scales: {
+                x: { title: { display: true, text: 'Time' } },
+                y: { title: { display: true, text: result.label } }
+              }
+            }
+          });
+        });
+      });
+    </script>
+
+    {% elif tab == 'export' %}
+    <div class="export-controls">
+      <select id="plotly-biomarker">
+        <option value="">Select biomarker</option>
+        {% for b in biomarker_map.keys() %}
+          <option value="{{ b }}">{{ b }}</option>
+        {% endfor %}
+      </select>
+
+      <select id="plotly-subject" disabled>
+        <option value="">Select subject ID</option>
+      </select>
+
+      <select id="plotly-task">
+        <option value="">Select task type</option>
+      </select>
+
+      <select id="plotly-disease">
+        <option value="">Select disease status</option>
+      </select>
+
+      <select id="plotly-graph">
+        <option value="">Select graph</option>
+        {% for g in uploaded_graphs %}
+          <option value="{{ g.filename }}"
+                  data-biomarker="{{ g.biomarker }}"
+                  data-subject="{{ g.subject_id }}"
+                  data-task="{{ g.task_type }}"
+                  data-disease="{{ g.disease_status }}">
+            {{ g.title }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="export-options">
+      <label>X-axis label: <input type="text" id="plotly-xlabel" value="Time"></label>
+      <label>Y-axis label: <input type="text" id="plotly-ylabel" value="Value"></label>
+      <label>Font size: <input type="number" id="plotly-fontsize" value="14"></label>
+      <label>Background color: <input type="color" id="plotly-bgcolor" value="#ffffff"></label>
+      <button onclick="refreshPlotlyPreview()">Refresh</button>
+      <button onclick="downloadPlotlySVG()">Download SVG</button>
+
+      <hr style="width:100%">
+      <label>Line color: <input type="color" id="lineColor" value="#008080"></label>
+      <label>Line width: <input type="number" id="lineWidth" value="2"></label>
+      <label>Line style:
+        <select id="lineDash">
+          <option value="solid">Solid</option>
+          <option value="dash">Dashed</option>
+          <option value="dot">Dotted</option>
+        </select>
+      </label>
+
+      <label>X-axis min: <input type="number" id="xMin"></label>
+      <label>X-axis max: <input type="number" id="xMax"></label>
+      <label>Y-axis min: <input type="number" id="yMin"></label>
+      <label>Y-axis max: <input type="number" id="yMax"></label>
+
+      <label>Graph type:
+        <select id="chartType">
+          <option value="scatter">Line Chart</option>
+          <option value="bar">Bar Chart</option>
+          <option value="area">Area Chart</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="plotly-chart" style="width: 100%; height: 500px; margin-top: 30px;"></div>
+
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+
+    <script>
+    const biomarkerMap = {{ biomarker_map | tojson }};
+    const plotlyGraphs = {{ uploaded_graphs | tojson }};
+
+    document.getElementById("plotly-biomarker").addEventListener("change", () => {
+      const biomarker = event.target.value;
+      const subjectSelect = document.getElementById("plotly-subject");
+      subjectSelect.innerHTML = "<option value=''>Select subject ID</option>";
+      subjectSelect.disabled = !biomarker;
+      if (biomarkerMap[biomarker]) {
+        biomarkerMap[biomarker].forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s;
+          opt.textContent = s;
+          subjectSelect.appendChild(opt);
+        });
+      }
+      filterPlotlyGraphs();
+    });
+    document.getElementById("plotly-subject").addEventListener("change", filterPlotlyGraphs);
+    document.getElementById("plotly-task").addEventListener("change", filterPlotlyGraphs);
+    document.getElementById("plotly-disease").addEventListener("change", filterPlotlyGraphs);
+
+    function filterPlotlyGraphs() {
+      const b = document.getElementById("plotly-biomarker").value;
+      const s = document.getElementById("plotly-subject").value;
+      const t = document.getElementById("plotly-task").value;
+      const d = document.getElementById("plotly-disease").value;
+      const select = document.getElementById("plotly-graph");
+      select.innerHTML = "<option value=''>Select graph</option>";
+      plotlyGraphs.forEach(g => {
+        if ((b && g.biomarker !== b) || (s && g.subject_id !== s) ||
+            (t && g.task_type !== t) || (d && g.disease_status !== d)) return;
+        const opt = document.createElement("option");
+        opt.value = g.filename;
+        opt.textContent = g.title;
+        select.appendChild(opt);
+      });
+    }
+
+    document.getElementById("plotly-graph").addEventListener("change", function () {
+      const filename = this.value;
+      if (!filename) return;
+      fetch(`/data/${filename}`).then(res => res.json()).then(data => {
+        drawPlotly(data.labels, data.values);
+      });
+    });
+
+    function drawPlotly(x, y) {
+      const xLabel = document.getElementById("plotly-xlabel").value;
+      const yLabel = document.getElementById("plotly-ylabel").value;
+      const fontSize = parseInt(document.getElementById("plotly-fontsize").value);
+      const bgColor = document.getElementById("plotly-bgcolor").value;
+
+      const chartType = document.getElementById("chartType").value;
+      const lineColor = document.getElementById("lineColor").value;
+      const lineWidth = parseInt(document.getElementById("lineWidth").value);
+      const lineDash = document.getElementById("lineDash").value;
+
+      const xMin = parseFloat(document.getElementById("xMin").value);
+      const xMax = parseFloat(document.getElementById("xMax").value);
+      const yMin = parseFloat(document.getElementById("yMin").value);
+      const yMax = parseFloat(document.getElementById("yMax").value);
+
+      const trace = {
+        x: x,
+        y: y,
+        mode: 'lines+markers',
+        type: chartType === 'area' ? 'scatter' : chartType,
+        fill: chartType === 'area' ? 'tozeroy' : 'none',
+        line: {
+          color: lineColor,
+          width: lineWidth,
+          dash: lineDash
+        },
+        marker: {
+          size: 6
+        }
+      };
+
+      const layout = {
+        plot_bgcolor: bgColor,
+        paper_bgcolor: bgColor,
+        font: { size: fontSize },
+        xaxis: {
+          title: xLabel,
+          range: [isNaN(xMin) ? null : xMin, isNaN(xMax) ? null : xMax]
+        },
+        yaxis: {
+          title: yLabel,
+          range: [isNaN(yMin) ? null : yMin, isNaN(yMax) ? null : yMax]
+        },
+        margin: { l: 50, r: 30, t: 50, b: 50 }
+      };
+
+      Plotly.newPlot('plotly-chart', [trace], layout, { staticPlot: false });
+    }
+
+    function downloadPlotlySVG() {
+      Plotly.downloadImage('plotly-chart', {
+        format: 'svg',
+        filename: 'graph_export'
+      });
+    }
+
+    function refreshPlotlyPreview() {
+      const filename = document.getElementById("plotly-graph").value;
+      if (!filename) {
+        alert("Please select a graph first.");
+        return;
+      }
+
+      fetch(`/data/${filename}`)
+        .then(res => res.json())
+        .then(data => {
+          drawPlotly(data.labels, data.values);
+        });
+    }
+    </script>
+
+    {% elif tab == 'featureex' %}
+    <div class="ml-controls">
+
+    <label>Title:</label>
+    <select id="titleDropdown">
+      <option value="">Select</option>
+      {% for g in uploaded_graphs %}
+        <option value="{{ g.title }}"
+                data-biomarker="{{ g.biomarker }}"
+                data-task="{{ g.task_type }}"
+                data-disease="{{ g.disease_status }}"
+                data-subject="{{ g.subject_id }}">
+          {{ g.title }}
+        </option>
+      {% endfor %}
+    </select>
+
+      <form action="/extract_feature" method="post">
+        <label>Biomarker:</label>
+        <select name="biomarker" id="biomarkerField" required>
+          <option value="">Select</option>
+          <option value="Blood Glucose">Blood Glucose</option>
+          <option value="Uric Acid">Uric Acid</option>
+          <option value="Intraocular Pressure">Intraocular Pressure</option>
+        </select>
+
+        <label>Task Type:</label>
+        <select name="task_type" id="taskTypeField" required>
+          <option value="">Select</option>
+          <option value="General">General</option>
+          <option value="Electronic Device Use">Electronic Device Use</option>
+          <option value="Head Position">Head Position</option>
+          <option value="Body Position">Body Position</option>
+        </select>
+
+        <label>Disease Status:</label>
+        <select name="disease_status" id="diseaseField" required>
+          <option value="">Select</option>
+          <option value="General">General</option>
+          <option value="Diabetes">Diabetes</option>
+          <option value="Hyperuricemia">Hyperuricemia</option>
+          <option value="Glaucoma">Glaucoma</option>
+          <option value="Myopia">Myopia</option>
+        </select>
+
+        <label>Start Time (min):</label>
+        <input type="number" name="start_time" required>
+
+        <label>End Time (min):</label>
+        <input type="number" name="end_time" required><br><br>
+      
+        <label>Features to extract:</label>
+        <div>
+          <label><input type="checkbox" name="feature_name" value="slope"> slope</label>
+          <label><input type="checkbox" name="feature_name" value="auc"> AUC</label>
+          <label><input type="checkbox" name="feature_name" value="difference"> difference</label>
+        </div>
+
+        <label>Subject ID:</label>
+        <input type="text" name="subject_id" id="subjectField" placeholder="Enter subject ID" required>
+
+        <button type="submit">Extract Feature</button>
+      </form>
+    </div>
+
+    <script>
+      window.addEventListener("DOMContentLoaded", function () {
+        const titleDropdown = document.getElementById("titleDropdown");
+        if (!titleDropdown) return;
+
+        titleDropdown.addEventListener("change", function () {
+          const selected = this.selectedOptions[0];
+          if (!selected) return;
+
+          document.getElementById("biomarkerField").value = selected.getAttribute("data-biomarker");
+          document.getElementById("taskTypeField").value = selected.getAttribute("data-task");
+          document.getElementById("diseaseField").value = selected.getAttribute("data-disease");
+          document.getElementById("subjectField").value = selected.getAttribute("data-subject");
+        });
+      });
+    </script>    
+
+    <div id="featureCards" style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 30px;"></div>
+    <div id="featureDataTable" style="margin-top: 30px;"></div>
+
+    <script>
+      function loadFeatureCards() {
+        fetch(`/features?_=${Date.now()}`)
+          .then(res => res.json())
+          .then(features => {
+            const container = document.getElementById("featureCards");
+            container.innerHTML = "";
+
+            features.forEach(f => {
+              const card = document.createElement("div");
+              card.className = "feature-card";
+              card.style.width = "300px";
+              card.style.backgroundColor = "#fff4e3";
+              card.style.borderRadius = "12px";
+              card.style.padding = "16px";
+              card.style.boxShadow = "0 2px 5px rgba(0,0,0,0.1)";
+              card.style.display = "flex";
+              card.style.flexDirection = "column";
+              card.style.gap = "10px";
+
+              card.innerHTML = `
+                <div style="background-color:#d86f1d; color:white; padding:6px 12px; font-weight:bold; border-radius:8px;">
+                  Graph: ${f.title}
+                </div>
+                <div style="margin-top:10px; font-size:14px;">
+                  <strong>Feature Name:</strong> ${f.name}<br>
+                  <strong>Biomarker:</strong> ${f.biomarker}<br>
+                  <strong>Disease Status:</strong> ${f.disease_status}<br>
+                  <strong>Task Type:</strong> ${f.task_type}<br>
+                  <strong>Start Time:</strong> ${f.start} min<br>
+                  <strong>End Time:</strong> ${f.end} min
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <button onclick="viewFeatureData('${f.name}')">View Data</button>
+                  <button onclick="deleteFeature('${f.name}', this)">Delete</button>
+                </div>
+              `;
+
+              container.appendChild(card);
+            });
+          });
+      }
+
+      window.addEventListener("DOMContentLoaded", function () {
+        loadFeatureCards();
+      });
+    </script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const form = document.querySelector("form[action='/extract_feature']");
+        if (!form) return;
+
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+
+          const formData = new FormData(form);
+          const selectedTitle = document.getElementById("titleDropdown").value;
+          formData.append("title", selectedTitle);
+
+          fetch("/extract_feature", {
+            method: "POST",
+            body: formData
+          })
+          .then(res => {
+            if (!res.redirected && !res.ok) {
+              throw new Error("Extraction failed or server error");
+            }
+            return res.text();
+          })
+          .then(() => {
+            loadFeatureCards();
+            alert("Feature extraction completed successfully.");
+          })
+          .catch(err => {
+            alert("An error occurred during feature extraction: " + err.message);
+          });
+        });
+      });
+    </script>
+
+    <script>
+      function viewFeatureData(featureName) {
+        fetch(`/feature_data/${featureName}`)
+          .then(res => res.json())
+          .then(data => {
+            const tableDiv = document.getElementById("featureDataTable");
+            if (data.error) {
+              tableDiv.innerHTML = `<p style="color:red;">${data.error}</p>`;
+              return;
+            }
+
+            let html = `<h3 style="margin-bottom: 10px;">📋 ${featureName}.xlsx Data</h3>`;
+            html += `<table border="1" cellpadding="5" style="border-collapse: collapse; font-size:14px;">`;
+            html += `<tr>${data.columns.map(col => `<th>${col}</th>`).join('')}</tr>`;
+            data.rows.forEach(row => {
+              html += `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`;
+            });
+            html += `</table>`;
+            tableDiv.innerHTML = html;
+          });
+      }
+    </script>
+
+    <script>
+      async function deleteFeature(featureName, buttonElement) {
+        const confirmed = confirm(`Do you want to delete '${featureName}'?`);
+        if (!confirmed) return;
+
+        try {
+          const response = await fetch("/delete_feature", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ feature_name: featureName })
+          });
+
+          const result = await response.json();
+          if (response.ok) {
+            alert("Delete completed.");
+            location.reload();
+
+            const cardElement = buttonElement.closest(".feature-card");
+            if (cardElement) {
+              cardElement.remove();
+            } else {
+              console.warn("Card element not found");
+            }
+          } else {
+            alert("Delete failed: " + result.error);
+          }
+        } catch (error) {
+          alert("An error occurred while sending the delete request: " + error);
+        }
+      }
+    </script>
+
+  </div>
+
+<script>
+  window.addEventListener('DOMContentLoaded', () => {
+    const hist = document.querySelector('.chat-history');
+    if (!hist) return;
+
+    const saved = sessionStorage.getItem('chatHistScroll');
+    if (saved) {
+      try {
+        const { top } = JSON.parse(saved);
+        hist.scrollTop = top ?? hist.scrollHeight;
+      } catch (_) {
+        hist.scrollTop = hist.scrollHeight;
+      }
+    } else {
+      hist.scrollTop = hist.scrollHeight;
+    }
+
+    window.addEventListener('beforeunload', () => {
+      sessionStorage.setItem('chatHistScroll', JSON.stringify({ top: hist.scrollTop }));
+    });
+  });
+</script>
+
+    {% elif tab == 'machine' %}
+    <div class="tab-content" id="machine-tab" {% if tab != 'machine' %}style="display:none"{% endif %}>
+      <h2>ML Model Training</h2>
+      <form action="/train_model" method="post">
+        <p>Select the graphs to use for training:</p>
+        {% for graph in uploaded_graphs %}
+          <label>
+            <input type="checkbox" class="graph-checkbox" name="selected_titles" value="{{ graph.title }}">
+            {{ graph.title }} ({{ graph.subject_id }}, {{ graph.biomarker }})
+          </label><br>
+        {% endfor %}
+        <br>
+        <div id="train-result" style="margin-top: 1rem;"></div>
+        <button type="button" onclick="trainModel()" class="btn btn-primary">Start Training</button>
+
+        <script>
+          async function trainModel() {
+            const checked = [...document.querySelectorAll("input.graph-checkbox:checked")];
+            const titles = checked.map(cb => cb.value);
+
+            const formData = new FormData();
+            titles.forEach(title => formData.append("selected_titles", title));
+
+            const resultBox = document.getElementById("train-result");
+            resultBox.innerHTML = "Training the model...";
+
+            try {
+              const response = await fetch("/train_model", {
+                method: "POST",
+                body: formData
+              });
+
+              const resultBox = document.getElementById("train-result");
+
+              if (response.ok) {
+                const result = await response.json();
+                if (result.status === "success") {
+                  resultBox.innerHTML = `<span style="color:green;">${result.message}</span>`;
+                } else {
+                  resultBox.innerHTML = `<span style="color:red;">${result.message}</span>`;
+                }
+              } else {
+                const text = await response.text();
+                resultBox.innerHTML = `<span style="color:red;">Server error: ${response.status}<br>${text}</span>`;
+              }
+            } catch (err) {
+              const resultBox = document.getElementById("train-result");
+              resultBox.innerHTML = `<span style="color:red;">Request error: ${err.message}</span>`;
+              console.error("Request failed:", err);
+            }
+          }
+        </script>
+      </form>
+    </div>
+    
+    {% elif tab == 'prediction' %}
+    <div class="tab-content" id="prediction-tab" {% if tab != 'prediction' %}style="display:none"{% endif %}>
+      <h2>Model Prediction</h2>
+
+      <form id="predict-form">
+        <p>Select the graph to predict:</p>
+        <select id="prediction-title" name="title" class="form-select">
+          {% for graph in uploaded_graphs %}
+            <option value="{{ graph.title }}">{{ graph.title }} ({{ graph.subject_id }}, {{ graph.biomarker }})</option>
+          {% endfor %}
+        </select>
+        <br>
+        <button type="submit" class="btn btn-primary">Start Prediction</button>
+      </form>
+
+      <div id="prediction-result" style="margin-top:1rem;"></div>
+      <canvas id="prediction-chart" style="margin-top:1rem; max-width: 500px; max-height:500px;"></canvas>
+      <script>
+        const form = document.getElementById("predict-form");
+        const resultBox = document.getElementById("prediction-result");
+        const chartCanvas = document.getElementById("prediction-chart");
+        let predictionChart = null;
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          const title = document.getElementById("prediction-title").value;
+          const formData = new FormData();
+          formData.append("title", title);
+
+          resultBox.innerHTML = "Running prediction...";
+
+          try {
+            const response = await fetch("/predict", {
+              method: "POST",
+              body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.status === "success") {
+              resultBox.innerHTML = `<span style="color:green;">Prediction completed for '${result.title}'</span>`;
+
+              const predicted = result.prediction;
+              const groundTruth = result.ground_truth;
+              const x = result.x;
+
+              if (predictionChart) {
+                predictionChart.destroy();
+              }
+
+              predictionChart = new Chart(chartCanvas, {
+                type: "line",
+                data: {
+                  labels: x,
+                  datasets: [
+                    {
+                      label: "Predicted",
+                      data: predicted,
+                      borderColor: "red",
+                      fill: false
+                    },
+                    {
+                      label: "Actual",
+                      data: groundTruth,
+                      borderColor: "blue",
+                      fill: false
+                    }
+                  ]
+                },
+                options: {
+                  responsive: true,
+                  plugins: {
+                    legend: { display: true },
+                    title: {
+                      display: true,
+                      text: `${result.title} Predicted TG`
+                    }
+                  },
+                  scales: {
+                    x: {
+                      type: "linear",
+                      title: {
+                        display: true,
+                        text: "Time (min)"
+                      }
+                    },
+                    y: {
+                      title: {
+                        display: true,
+                        text: "TG"
+                      }
+                    }
+                  }
+                }
+              });
+
+            } else {
+              resultBox.innerHTML = `<span style="color:red;">${result.message}</span>`;
+            }
+
+          } catch (err) {
+            resultBox.innerHTML = `<span style="color:red;">Server error occurred</span>`;
+          }
+        });
+      </script>
+    </div>
+
+    {% elif tab == 'report' %}
+    <div class="report-generation">
+      <form action="/generate_report" method="post">
+        <input type="text" name="report_title" placeholder="Enter report title" required>
+        <button type="submit">📄 Generate Report</button>
+      </form>
+    </div>
+
+  {% elif tab == 'scheduler' %}
+  <div class="glucose-scheduler">
+    <h2>Glucose Scheduler</h2>
+
+    <div class="scheduler-controls" style="display:grid; gap:12px; max-width:720px;">
+      <label>Food (1 item per line)
+        <textarea id="foodInput"
+          placeholder="e.g.)
+banana
+rice
+grape"
+          rows="6" style="width:100%;"></textarea>
+      </label>
+
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
+        <label>Breakfast Time
+          <input id="timeB" type="text" class="time-en" value="08:00 AM" style="width:100%;">
+        </label>
+        <label>Lunch Time
+          <input id="timeL" type="text" class="time-en" value="12:30 PM" style="width:100%;">
+        </label>
+        <label>Dinner Time
+          <input id="timeD" type="text" class="time-en" value="06:30 PM" style="width:100%;">
+        </label>
+        <label>Snack Time (optional)
+          <input id="timeS" type="text" class="time-en" placeholder="e.g. 03:00 PM" style="width:100%;">
+        </label>
+      </div>
+
+      <p style="font-size:12px; color:#555; margin-top:6px;">
+        To fix a food item to a specific meal, attach a tag ("@B / @L / @D / @S": breakfast, lunch, dinner, snack)<br>
+        e.g.) "yogurt @B"
+      </p>
+
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button id="btnGenerate">Generate Timetable</button>
+        <button id="btnSave" type="button">Save Plan</button>
+        <button id="btnLoad" type="button">Load Plan</button>
+        <span id="schedulerMsg" style="font-size:12px; color:#666;"></span>
+      </div>
+    </div>
+
+    <div id="planResult" style="margin-top:18px;"></div>
+  </div>
+  {% endif %}
+
+  <script>
+  (function () {
+    function foodsFromSession() {
+      try {
+        const raw = sessionStorage.getItem("scheduler:prefill");
+        return raw ? raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean) : [];
+      } catch { return []; }
+    }
+    function foodsFromQuery() {
+      try {
+        const u = new URL(window.location.href);
+        const raw = u.searchParams.get("foods");
+        return raw ? decodeURIComponent(raw).split(",").map(s=>s.trim()).filter(Boolean) : [];
+      } catch { return []; }
+    }
+    function findschedulerTextarea() {
+      const root = document.querySelector(".glucose-scheduler") || document;
+      let el =
+        root.querySelector('#foodInput') ||
+        root.querySelector('[data-scheduler-input]') ||
+        root.querySelector('textarea[name="food"], textarea#food') ||
+        root.querySelector('.scheduler-controls textarea') ||
+        root.querySelector('.gluco-scheduler textarea');
+      if (!el) {
+        const cands = [...root.querySelectorAll('textarea')];
+        el = cands.find(t => /Food/i.test(t.closest('label')?.textContent || "")) ||
+            cands.find(t => /e\.g\.\)/i.test(t.placeholder || "")) ||
+            cands[0];
+      }
+      return el || null;
+    }
+
+    (function inject() {
+      const fromS = foodsFromSession();
+      const fromQ = foodsFromQuery();
+      const merged = [...new Set([...fromS, ...fromQ])];
+      console.info("[scheduler:inject] fromSession:", fromS, "fromQuery:", fromQ, "merged:", merged);
+
+      if (!merged.length) return;
+      const ta = findschedulerTextarea();
+      if (!ta) { console.warn("[scheduler:inject] textarea not found"); return; }
+
+      ta.value = merged.join("\n");
+      console.info("[scheduler:inject] textarea filled");
+
+      try { sessionStorage.removeItem("scheduler:prefill"); } catch {}
+
+      const prev = ta.style.boxShadow;
+      ta.style.boxShadow = '0 0 0 3px rgba(255, 215, 0, .7)';
+      setTimeout(() => { ta.style.boxShadow = prev || ''; }, 1200);
+    })();
+  })();
+  </script>
+  </div>
+    
+  <script>
+    (function () {
+      const sel = document.getElementById('navSelect');
+      if (!sel) return;
+      sel.addEventListener('change', function () {
+        const url = this.value;
+        if (url) window.location.href = url;
+      });
+    })();
+  </script>
+
+<script>
+(function(){
+  const carbLib = window.carbLib;
+
+  const $ = id => document.getElementById(id);
+  const foodInput = $('foodInput');
+  const timeB = $('timeB'), timeL = $('timeL'), timeD = $('timeD'), timeS = $('timeS');
+  const ruleSelect = $('ruleSelect');
+  const planResult = $('planResult');
+  const msg = $('schedulerMsg');
+
+  function norm(s){ return (s||'').toLowerCase().replace(/\s+/g,'').trim(); }
+  function inList(name, arr){
+    const n = norm(name);
+    return arr.some(x=>{
+      const t = norm(x);
+      return t===n || n.includes(t) || t.includes(n);
+    });
+  }
+  function getCarbClass(foodName){
+    if (inList(foodName, carbLib.high)) return 'high';
+    if (inList(foodName, carbLib.mediumHigh)) return 'medium high';
+    if (inList(foodName, carbLib.medium)) return 'medium';
+    if (inList(foodName, carbLib.mediumLow)) return 'medium low';
+    if (inList(foodName, carbLib.low)) return 'low';
+    if (inList(foodName, carbLib.veryLow)) return 'very low';
+    return 'unknown';
+  }
+
+  function randInt(min, max){ return Math.floor(Math.random()*(max-min+1))+min; }
+
+  function addMinutes(str, minutes){
+    if (!str) return '-';
+    const s = (str || '').trim();
+
+    const ampm = s.match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
+    let h, m;
+    if (ampm) {
+      h = parseInt(ampm[1], 10);
+      m = parseInt(ampm[2], 10);
+      const ap = ampm[3].toUpperCase();
+      if (ap === 'PM' && h !== 12) h += 12;
+      if (ap === 'AM' && h === 12) h = 0;
+    } else {
+      const hhmm = s.match(/^(\d{1,2}):(\d{2})$/);
+      if (!hhmm) return '-';
+      h = parseInt(hhmm[1], 10);
+      m = parseInt(hhmm[2], 10);
+    }
+
+    const d = new Date(0,0,1,h||0,m||0,0,0);
+    d.setMinutes(d.getMinutes() + (minutes||0));
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    return `${hh}:${mm}`;
+  }
+
+  function exercisePlanForMeal(items){
+    const hasHigh = items.some(x => getCarbClass(x.name) === 'high');
+    const hasMedhigh = items.some(x => getCarbClass(x.name) === 'medium high');
+    const hasMed  = items.some(x => getCarbClass(x.name) === 'medium');
+    const hasMedlow = items.some(x => getCarbClass(x.name) === 'medium low');
+    const hasLow  = items.some(x => getCarbClass(x.name) === 'low');
+    const hasVerylow = items.some(x => getCarbClass(x.name) === 'very low');
+
+    if (hasHigh) return { minutes: 30, peak: randInt(90,110) };
+    if (hasMedhigh) return { minutes: 25, peak: randInt(85, 105) };
+    if (hasMed) return { minutes: 20, peak: randInt(80,100) };
+    if (hasMedlow) return { minutes: 15, peak: randInt(75,95) };
+    if (hasLow) return { minutes: 10, peak: randInt(65,80) };
+    if (hasVerylow) return { minutes: 10, peak: randInt(60,75) };
+    return { minutes: null, peak: '-' };
+  }
+
+  function randomPeakForClass(c){
+    if (c === 'high') return Math.floor(Math.random()*(200-170+1))+170;
+    if (c === 'medium high') return Math.floor(Math.random()*(190-160+1))+160;
+    if (c === 'medium') return Math.floor(Math.random()*(160-120+1))+120;
+    if (c === 'medium low') return Math.floor(Math.random()*(145-110+1))+110;
+    if (c === 'low') return Math.floor(Math.random()*(119-90+1))+90;
+    if (c === 'very low') return Math.floor(Math.random()*(100-80+1))+80;
+    return '-';
+  }
+
+  function parseLine(line){
+    const trimmed = (line||'').trim();
+    if (!trimmed) return null;
+    const tagMatch = trimmed.match(/@([BLDS])\b/i);
+    const tag = tagMatch ? tagMatch[1].toUpperCase() : null;
+    const name = trimmed.replace(/\s*@([BLDS])\b/gi, "").trim();
+    return { name: name || "Food", tag: tag };
+  }
+
+  function distributeByCarbClass(items, times){
+    const buckets = {
+      B: { label: "Breakfast", items: [] },
+      L: { label: "Lunch", items: [] },
+      D: { label: "Dinner", items: [] },
+      S: { label: "Snack", items: [] }
+    };
+
+    items.filter(x=>x.tag).forEach(x=>{
+      buckets[x.tag].items.push(x);
+    });
+
+    const floating = items.filter(x=>!x.tag)
+      .map(x => ({...x, cclass: getCarbClass(x.name)}));
+
+    const pref = {
+      high: ['B','L','S','D'],
+      mediumHigh: ['B','L','S','D'],
+      medium: ['L','B','D','S'],
+      mediumLow: ['L','B','D','S'],
+      low: ['D','S','L','B'],
+      veryLow: ['D','S','L','B'],
+      unknown:['L','B','D','S']
+    };
+
+    const counters = { B:{}, L:{}, D:{}, S:{} };
+    function pushToBest(x){
+      const order = pref[x.cclass] || pref.unknown;
+      const best = order
+        .filter(k => k!=='S' || times.S)
+        .sort((a,b)=>{
+          const ca = counters[a][x.cclass]||0, cb = counters[b][x.cclass]||0;
+          if (ca !== cb) return ca - cb;
+          return buckets[a].items.length - buckets[b].items.length;
+        })[0];
+      buckets[best].items.push(x);
+      counters[best][x.cclass] = (counters[best][x.cclass]||0) + 1;
+    }
+
+    floating.forEach(pushToBest);
+    return buckets;
+  }
+
+  function distributeEven(items, times){
+    const buckets = {
+      B: { label: "Breakfast", items: [] },
+      L: { label: "Lunch", items: [] },
+      D: { label: "Dinner", items: [] },
+      S: { label: "Snack", items: [] }
+    };
+    items.filter(x=>x.tag).forEach(x=> buckets[x.tag].items.push(x));
+    const floating = items.filter(x=>!x.tag);
+
+    floating.forEach(x=>{
+      const candidates = ['B','L','D'].concat(times.S ? ['S'] : []);
+      const best = candidates.sort((a,b)=> buckets[a].items.length - buckets[b].items.length)[0];
+      buckets[best].items.push(x);
+    });
+    return buckets;
+  }
+
+  function toAmPm(str){
+    const m = (str||'').match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return str || '-';
+    let h = parseInt(m[1],10), mm = m[2];
+    const ap = h>=12 ? 'PM' : 'AM';
+    h = h%12; if (h===0) h=12;
+    return `${h}:${mm} ${ap}`;
+  }
+
+  function timeStrToMinutes(str){
+    if (!str) return null;
+    const s = String(str).trim();
+
+    const m1 = s.match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
+    if (m1){
+      let h = parseInt(m1[1],10);
+      const mm = parseInt(m1[2],10);
+      const ap = m1[3].toUpperCase();
+      if (ap==='PM' && h!==12) h+=12;
+      if (ap==='AM' && h===12) h=0;
+      return h*60 + mm;
+    }
+
+    const m2 = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (m2){
+      const h = parseInt(m2[1],10), mm = parseInt(m2[2],10);
+      return h*60 + mm;
+    }
+    return null;
+  }
+
+  function minutesToAmPm(total){
+    if (total==null) return '-';
+    const t = ((total%1440)+1440)%1440;
+    let h = Math.floor(t/60), m = t%60;
+    const ap = h>=12 ? 'PM':'AM';
+    h = h%12; if (h===0) h=12;
+    return `${h}:${String(m).padStart(2,'0')} ${ap}`;
+  }
+
+  let dayChart = null;
+
+  function buildDaySeriesFromTableRows(rows){
+    const pts = [];
+    rows.forEach(r=>{
+      if (r.mealTimeMin!=null && r.mealPeakAvg!=null){
+        pts.push({ t: r.mealTimeMin, y: r.mealPeakAvg, label: 'Meal' });
+      }
+      if (r.exTimeMin!=null && r.exPeak!=null){
+        pts.push({ t: r.exTimeMin, y: r.exPeak, label: 'Exercise' });
+      }
+    });
+    pts.sort((a,b)=> a.t - b.t);
+    return pts;
+  }
+
+  function drawDayChart(series, markers = [], canvasId='glucose-day-chart'){
+    const X_MIN = timeStrToMinutes('7:30 AM');
+    const X_MAX = timeStrToMinutes('11:59 PM');
+
+    let container = document.getElementById('glucose-day-chart-wrap');
+    if (!container){
+      const plan = document.getElementById('planResult');
+      container = document.createElement('div');
+      container.id = 'glucose-day-chart-wrap';
+      container.style.marginTop = '16px';
+      container.innerHTML = `
+        <h3 style="margin:8px 0;">Glucose Trajectory (from table)</h3>
+        <div class="chart-box" style="position:relative; width:100%; height:240px; min-height:240px; overflow:hidden;">
+          <canvas id="${canvasId}" style="width:100%; height:100%; display:block;"></canvas>
+        </div>
+      `;
+      plan.appendChild(container);
+    } else {
+      const box = container.querySelector('.chart-box');
+      if (box){
+        box.style.position = 'relative';
+        box.style.width = '100%';
+        box.style.height = '240px';
+        box.style.minHeight = '240px';
+        box.style.overflow = 'hidden';
+      }
+    }
+
+    const clean = (series || [])
+      .filter(p => Number.isFinite(p?.t) && Number.isFinite(p?.y))
+      .map(p => ({ x: Math.min(Math.max(p.t, X_MIN), X_MAX), y: Math.min(Math.max(p.y, 0), 250) }))
+      .sort((a,b) => a.x - b.x);
+
+    if (clean.length === 0){
+      clean.push({ x: X_MIN, y: 83 }, { x: X_MAX, y: 83 });
+    } else if (clean.length === 1){
+      clean.push({ x: X_MAX, y: clean[0].y });
+    }
+
+    const mealPoints = [];
+    const exPoints   = [];
+    const annotations = {};
+
+    function _valueAtLine(seriesXY, tx){
+      const pts = [...seriesXY].sort((a,b)=> a.t - b.t);
+      if (pts.length === 0) return 83;
+      if (tx <= pts[0].t) return pts[0].y;
+      if (tx >= pts[pts.length-1].t) return pts[pts.length-1].y;
+      for (let i=0; i<pts.length-1; i++){
+        const a = pts[i], b = pts[i+1];
+        if (tx >= a.t && tx <= b.t){
+          const u = (tx - a.t) / (b.t - a.t);
+          return a.y + (b.y - a.y) * u;
+        }
+      }
+      return pts[pts.length-1].y;
+    }
+
+    (markers || []).forEach((m, idx) => {
+      const tx = Math.min(Math.max(m.t, X_MIN), X_MAX);
+      const curveY = _valueAtLine(clean.map(({x,y})=>({t:x,y})), tx);
+      const isMeal = m.type === 'meal';
+
+      (isMeal ? mealPoints : exPoints).push({ x: tx, y: curveY });
+
+      annotations[`v_${isMeal?'meal':'ex'}_${idx}`] = {
+        type: 'line',
+        xMin: tx,
+        xMax: tx,
+        borderWidth: 1,
+        borderDash: [2, 2],
+        borderColor: 'rgba(0,0,0,0.35)',
+        display: true
+      };
+
+      const yOffset = isMeal ? -10 : +12;
+      annotations[`p_${isMeal?'meal':'ex'}_${idx}`] = {
+        type: 'point',
+        xValue: tx,
+        yValue: curveY,
+        radius: 0,
+        label: {
+          enabled: true,
+          content: isMeal ? (m.label || 'Meal') : (m.label || 'Exercise'),
+          yAdjust: yOffset,
+          backgroundColor: 'rgba(255,255,255,0.85)',
+          color: isMeal ? '#2c7' : '#07c',
+          borderColor: isMeal ? '#2c7' : '#07c',
+          borderWidth: 1,
+          padding: 4,
+          font: { weight: 'bold' },
+          clip: false
+        }
+      };
+    });
+
+    if (window.dayChart){ window.dayChart.destroy(); window.dayChart = null; }
+
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    window.dayChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [
+          {
+            label: 'Glucose (mg/dL)',
+            data: clean,
+            parsing: false,
+            fill: false,
+            borderWidth: 2,
+            pointRadius: 0,
+            cubicInterpolationMode: 'monotone',
+            tension: 0.4
+          },
+          {
+            label: 'Meal',
+            type: 'scatter',
+            data: mealPoints,
+            parsing: false,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#2c7',
+            pointBorderColor: '#145f3a',
+            pointBorderWidth: 2,
+            showLine: false
+          },
+          {
+            label: 'Exercise',
+            type: 'scatter',
+            data: exPoints,
+            parsing: false,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#07c',
+            pointBorderColor: '#0a4ea3',
+            pointBorderWidth: 2,
+            showLine: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true },
+          tooltip: {
+            callbacks: {
+              title: (items)=> {
+                const x = items?.[0]?.parsed?.x;
+                return minutesToAmPm(x);
+              },
+              label: (ctx)=> {
+                const dsLabel = ctx.dataset?.label || '';
+                const v = Math.round(ctx.parsed.y);
+                return `${dsLabel ? dsLabel+': ' : ''}${v} mg/dL`;
+              }
+            }
+          },
+          annotation: { annotations }
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            min: X_MIN,
+            max: X_MAX,
+            title: { display: true, text: 'Time' },
+            ticks: {
+              callback: (value)=> minutesToAmPm(value),
+              maxRotation: 0,
+              autoSkip: true
+            },
+            grid: { display: true }
+          },
+          y: {
+            min: 0,
+            max: 250,
+            title: { display: true, text: 'Glucose (mg/dL)' },
+            grid: { display: true }
+          }
+        }
+      }
+    });
+  }
+
+  function renderPlan(buckets, times){
+    const mealOrder = ['B','L','D'].concat(times.S ? ['S'] : []);
+    let html = `<div style="overflow-x:auto;">
+      <table border="1" cellpadding="8" style="border-collapse:collapse; min-width:980px;">
+        <thead>
+          <tr>
+            <th style="min-width:90px;">Meal</th>
+            <th style="min-width:110px;">Time</th>
+            <th>Menu (carb class)</th>
+            <th style="min-width:220px;">Predicted Glucose Peak (mg/dL)</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+    const dayRows = [];
+
+    mealOrder.forEach(k=>{
+      const b = buckets[k];
+
+      const itemPeaks = [];
+      const menuLines = b.items.map(x=>{
+        const c = getCarbClass(x.name);
+        const badge =
+          c === 'high' ? '[H]' :
+          c === 'medium high' ? '[MH]' :
+          c === 'medium' ? '[M]' :
+          c === 'medium low' ? '[ML]' :
+          c === 'low' ? '[L]' :
+          c === 'very low' ? '[VL]' : '[?]';
+
+        let peak = '-';
+        if (c === 'high') peak = randInt(170,200);
+        else if (c === 'medium high') peak = randInt(160,190);
+        else if (c === 'medium') peak = randInt(120,160);
+        else if (c === 'medium low') peak = randInt(110,145);
+        else if (c === 'low') peak = randInt(90,119);
+        else if (c === 'very low') peak = randInt(80,100);
+        if (peak !== '-') itemPeaks.push(peak);
+        return `${badge} ${escapeHtml(x.name)}`;
+      });
+
+      const peakLines = itemPeaks.length ? itemPeaks.map(v=> `${v}`) : [];
+
+      const mealTimeRaw = times[k] || null;
+      const mealTimeDisp = mealTimeRaw ? toAmPm(mealTimeRaw) : '-';
+      const mealTimeMin = mealTimeRaw ? timeStrToMinutes(mealTimeRaw) : null;
+
+      const ex = exercisePlanForMeal(b.items);
+      const exMinutes = 30;
+      const exTimeMin = (mealTimeMin!=null) ? (mealTimeMin + exMinutes) : null;
+
+      html += `
+        <tr>
+          <td><strong>${b.label}</strong></td>
+          <td>${mealTimeDisp}</td>
+          <td>${menuLines.length ? menuLines.join('<br>') : '-'}</td>
+          <td>${peakLines.length ? peakLines.join('<br>') : '-'}</td>
+        </tr>`;
+
+      html += `
+        <tr style="background:#f7f9ff;">
+        <td style="font-weight:bold;">
+          Exercise (${Number.isFinite(ex.minutes) ? ex.minutes : '-'} min)
+        </td>
+          <td>${exTimeMin!=null ? toAmPm(minutesToHHMM(exTimeMin)) : '-'}</td>
+          <td>Recommended post-meal activity</td>
+          <td>${ex.peak}</td>
+        </tr>`;
+
+      const mealPeakAvg = itemPeaks.length ? Math.round(itemPeaks.reduce((a,b)=>a+b,0)/itemPeaks.length) : null;
+      const exPeakVal = (typeof ex.peak==='number') ? ex.peak : null;
+
+      dayRows.push({
+        mealKey: k,
+        mealTimeMin,
+        mealPeakAvg,
+        exTimeMin,
+        exPeak: exPeakVal
+      });
+    });
+
+    html += `</tbody></table></div>`;
+    const series = buildDaySeriesFromTableRows(dayRows);
+    return html;
+  }
+
+  function minutesToHHMM(total){
+    const t=((total%1440)+1440)%1440;
+    const h=Math.floor(t/60), m=t%60;
+    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  }
+
+  function buildAnchoredSeries(rows){
+    const BASELINE = 83;
+    const NATURAL_PEAK_DELAY = [60, 80];
+    const EX_DROP_DURATION = [30, 50];
+    const EX_RECOVER_DURATION = [30, 40];
+    const SLOW_FALL_DURATION = [60, 120];
+
+    const anchors = [];
+    const times = rows.flatMap(r => [r.mealTimeMin, r.exTimeMin].filter(v => v != null));
+    if (times.length === 0) return [];
+    const tStart = Math.min(...times) - 30;
+    const tEnd   = Math.max(...times) + 90;
+
+    anchors.push({ t: tStart, y: BASELINE });
+
+    rows.forEach(r => {
+      const tMeal = r.mealTimeMin;
+      const vMeal = r.mealPeakAvg;
+      const tEx   = r.exTimeMin;
+      const vExPk = r.exPeak;
+
+      if (tMeal == null) return;
+
+      anchors.push({ t: tMeal, y: BASELINE });
+
+      const tNatPeak = tMeal + randInt(NATURAL_PEAK_DELAY[0], NATURAL_PEAK_DELAY[1]);
+
+      if (tEx == null || tEx >= tNatPeak) {
+        if (Number.isFinite(vMeal)) {
+          anchors.push({ t: tNatPeak, y: vMeal });
+          const fallDur = randInt(SLOW_FALL_DURATION[0], SLOW_FALL_DURATION[1]);
+          anchors.push({ t: tNatPeak + fallDur, y: BASELINE });
+        } else {
+          anchors.push({ t: tNatPeak, y: BASELINE });
+        }
+      } else {
+        let vBeforeEx = BASELINE;
+        if (Number.isFinite(vMeal)) {
+          const progress = Math.max(0, Math.min(1, (tEx - tMeal) / (tNatPeak - tMeal)));
+          vBeforeEx = BASELINE + (vMeal - BASELINE) * progress;
+        }
+        anchors.push({ t: tEx, y: vBeforeEx });
+
+        const dropDur = randInt(EX_DROP_DURATION[0], EX_DROP_DURATION[1]);
+        const tTrough = tEx + dropDur;
+        const targetExPk = Number.isFinite(vExPk) ? vExPk : (BASELINE + 20);
+        const trough = Math.max(60, Math.min(vBeforeEx, targetExPk - randInt(10, 20)));
+        anchors.push({ t: tTrough, y: trough });
+
+        const recDur = randInt(EX_RECOVER_DURATION[0], EX_RECOVER_DURATION[1]);
+        const tExPeak = tTrough + recDur;
+        anchors.push({ t: tExPeak, y: targetExPk });
+
+        const fallDur = randInt(SLOW_FALL_DURATION[0], SLOW_FALL_DURATION[1]);
+        anchors.push({ t: tExPeak + fallDur, y: BASELINE });
+      }
+    });
+
+    const X_MAX = timeStrToMinutes('11:59 PM');
+    const endT  = Math.max(tEnd, X_MAX);
+    anchors.push({ t: endT, y: BASELINE });
+
+    return anchors
+      .filter(a => Number.isFinite(a.y) && Number.isFinite(a.t))
+      .sort((a,b) => a.t - b.t);
+  }
+
+  function buildDenseSeriesLinear(series, stepMin = 1){
+    if (!Array.isArray(series) || series.length < 2) return series || [];
+    const pts = [...series].sort((a,b)=> a.t - b.t);
+    const dense = [];
+
+    for (let i=0; i<pts.length-1; i++){
+      const a = pts[i], b = pts[i+1];
+      const t0 = Math.round(a.t), t1 = Math.round(b.t);
+      const y0 = a.y, y1 = b.y;
+
+      dense.push({ t: t0, y: y0 });
+
+      for (let t = t0 + stepMin; t < t1; t += stepMin){
+        const u = (t - t0) / (t1 - t0);
+        const y = y0 + (y1 - y0) * u;
+        dense.push({ t, y });
+      }
+    }
+    dense.push({ t: Math.round(pts[pts.length-1].t), y: pts[pts.length-1].y });
+    return dense;
+  }
+
+  function buildDenseSeriesSigmoid(series, stepMin = 1, k = 6){
+    if (!Array.isArray(series) || series.length < 2) return series || [];
+    const sigmoid = (x)=> 1 / (1 + Math.exp(-k*(x-0.5)));
+    const pts = [...series].sort((a,b)=> a.t - b.t);
+    const dense = [];
+
+    for (let i=0; i<pts.length-1; i++){
+      const a = pts[i], b = pts[i+1];
+      const t0 = Math.round(a.t), t1 = Math.round(b.t);
+      const y0 = a.y, y1 = b.y;
+
+      dense.push({ t: t0, y: y0 });
+
+      for (let t = t0 + stepMin; t < t1; t += stepMin){
+        const u = (t - t0) / (t1 - t0);
+        const s = sigmoid(u);
+        const y = y0 + (y1 - y0) * s;
+        dense.push({ t, y });
+      }
+    }
+    dense.push({ t: Math.round(pts[pts.length-1].t), y: pts[pts.length-1].y });
+    return dense;
+  }
+
+  function addBaselineNoise(dense, {
+    baseline = 83,
+    strongNearBaseline = true,
+    nearTol = 6,
+    smallStd = 1.5,
+    bigWalkStep = 0.25,
+    wobbleAmp = 3,
+    wobblePeriodMin = 60,
+    clampMin = 0,
+    clampMax = 250
+  } = {}){
+    if (!Array.isArray(dense) || dense.length === 0) return dense || [];
+
+    const phi = Math.random() * Math.PI * 2;
+    const arr = [...dense].sort((a,b)=> a.t - b.t);
+    let walk = 0;
+
+    const gauss = (std)=> ( (Math.random()+Math.random()+Math.random()+Math.random()-2) * (std/1.2) );
+
+    for (let i=1; i<arr.length; i++){
+      const prev = arr[i-1], cur = arr[i];
+      const dt = Math.max(1, cur.t - prev.t);
+      walk += (Math.random() < 0.5 ? -1 : 1) * bigWalkStep * Math.sqrt(dt);
+
+      const wobble = wobbleAmp * Math.sin((2*Math.PI*(cur.t))/wobblePeriodMin + phi);
+      const small = gauss(smallStd);
+
+      const nearBase = Math.abs(cur.y - baseline) <= nearTol;
+      const gain = strongNearBaseline && nearBase ? 1.5 : 1.0;
+
+      const noisy = cur.y + gain*(walk + wobble + small);
+      cur.y = Math.min(Math.max(noisy, clampMin), clampMax);
+    }
+
+    return arr;
+  }
+
+  function valueAt(series, t) {
+    if (!series || series.length === 0) return 83;
+    const pts = series;
+    if (t <= pts[0].t) return pts[0].y;
+    if (t >= pts[pts.length - 1].t) return pts[pts.length - 1].y;
+    let lo = 0, hi = pts.length - 1;
+    while (lo + 1 < hi) {
+      const mid = (lo + hi) >> 1;
+      if (pts[mid].t <= t) lo = mid; else hi = mid;
+    }
+    const a = pts[lo], b = pts[hi];
+    const u = (t - a.t) / (b.t - a.t);
+    return a.y + (b.y - a.y) * u;
+  }
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+  }
+
+  function savePlan(raw, config){
+    const data = { ts: Date.now(), raw, config };
+    localStorage.setItem('glucose scheduler:last', JSON.stringify(data));
+  }
+  function loadPlan(){
+    const raw = localStorage.getItem('glucose scheduler:last');
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return null; }
+  }
+
+  $('btnGenerate').addEventListener('click', ()=>{
+    const lines = (foodInput?.value || '').split('\n').map(parseLine).filter(Boolean);
+    if (lines.length === 0){ msg.textContent = 'Insert one or more items.'; return; }
+
+    const rule = (ruleSelect && ruleSelect.value) ? ruleSelect.value : 'carbclass';
+    const times = { B: timeB?.value, L: timeL?.value, D: timeD?.value, S: timeS?.value || "" };
+    const buckets = (rule === 'carbclass')
+      ? distributeByCarbClass(lines, times)
+      : distributeEven(lines, times);
+
+    planResult.innerHTML = renderPlan(buckets, times);
+
+    const rows = [];
+    ['B','L','D'].concat(times.S ? ['S'] : []).forEach(k=>{
+      const mealTimeMin = times[k] ? timeStrToMinutes(times[k]) : null;
+
+      const itemPeaks = (buckets[k].items||[]).map(x=>{
+        const c = getCarbClass(x.name);
+        if (c==='high') return randInt(170,200);
+        if (c==='medium high') return randInt(160,190);
+        if (c==='medium') return randInt(120,160);
+        if (c==='medium low') return randInt(110,145);
+        if (c==='low') return randInt(90,119);
+        if (c==='very low') return randInt(80,110);
+        return null;
+      }).filter(v=> v!=null);
+
+      const mealPeakAvg = itemPeaks.length ? Math.round(itemPeaks.reduce((a,b)=>a+b,0)/itemPeaks.length) : null;
+
+      const ex = exercisePlanForMeal(buckets[k].items||[]);
+      const exTimeMin = (mealTimeMin!=null) ? (mealTimeMin + 30) : null;
+      const exPeakVal = (typeof ex.peak==='number') ? ex.peak : null;
+
+      rows.push({ mealKey:k, mealTimeMin, mealPeakAvg, exTimeMin, exPeak: exPeakVal });
+    });
+
+    const markers = [];
+    ['B','L','D'].concat(times.S ? ['S'] : []).forEach(k=>{
+      const lbl = ( {B:'Breakfast', L:'Lunch', D:'Dinner', S:'Snack'}[k] || 'Meal' );
+      const mealT = rows.find(r=>r.mealKey===k)?.mealTimeMin;
+      const exT   = rows.find(r=>r.mealKey===k)?.exTimeMin;
+      if (Number.isFinite(mealT)) markers.push({ t: mealT, type:'meal', label: lbl });
+      if (Number.isFinite(exT)) markers.push({ t: exT, type:'exercise', label: `${lbl} Exercise` });
+    });
+
+    const anchors = buildAnchoredSeries(rows);
+    const dense   = buildDenseSeriesSigmoid(anchors, 1, 6);
+    const noisy   = addBaselineNoise(dense, {
+      baseline: 83,
+      wobblePeriodMin: 75,
+      wobbleAmp: 3,
+      smallStd: 1.8,
+      bigWalkStep: 0.28
+    });
+
+    drawDayChart(noisy, markers);
+    msg.textContent = 'Timetable generated.';
+  });
+
+})();
+</script>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<script>
+  flatpickr(".time-en", {
+    enableTime: true,
+    noCalendar: true,
+    dateFormat: "h:i K",
+    time_24hr: false,
+    minuteIncrement: 5
+  });
+</script>
+
+<script>
+  (() => {
+    const IMG_EXT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
+    const looksLikeFSPath = (s) => /^[A-Za-z]:[\\/]|^\//.test(s.trim());
+    const hasAnyExt = (s) => /\.[A-Za-z0-9]+$/.test(s.trim());
+    const isImageFilePath = (s) => looksLikeFSPath(s) && IMG_EXT.test(s.trim());
+    const isDirPath = (s) => looksLikeFSPath(s) && !hasAnyExt(s.trim());
+    const lastSeg = (p) => p.replace(/[\\/]+$/,'').split(/[\\/]/).pop();
+
+    const bgForType = (type) =>
+      type === "Guideline" ? "#fddede" :
+      type === "Event Added" ? "#d5ecf9" :
+      type === "Analysis Request" ? "#d6f5e8" : "#cce7f5";
+
+    const makeRow = ({ role, html, type }) => {
+      const align = role === "user" ? "flex-end" : "flex-start";
+      const bg = role === "assistant" ? bgForType(type) : "#e2e3e5";
+      const row = document.createElement("div");
+      row.className = "chat-row";
+      row.style.cssText = `display:flex;justify-content:${align};margin-bottom:12px;`;
+      const col = document.createElement("div");
+      col.style.cssText = `display:flex;flex-direction:column;align-items:${align==="flex-end"?"flex-end":"flex-start"};`;
+      const bubble = document.createElement("div");
+      bubble.className = `chat-bubble ${role}`;
+      bubble.style.cssText = `background-color:${bg};padding:10px 14px;border-radius:16px;max-width:100%;white-space:normal;word-break:break-word;`;
+      bubble.innerHTML = html;
+      const meta = document.createElement("div");
+      meta.style.cssText = "display:flex;gap:6px;margin-top:4px;align-items:center;";
+      meta.innerHTML =
+        (role === "user" ? "<span class='chat-emoji'>🧑</span>" : "<span class='chat-emoji'><img src='/static/icons/assistant.png' alt='assistant' style='width:20px; height:20px; border-radius:50%;'></span>") +
+        (type ? `<span class="chat-tag" style="font-size:.75em;background:#f0f0f0;padding:2px 6px;border-radius:8px;">${type}</span>` : "");
+      col.appendChild(bubble); col.appendChild(meta); row.appendChild(col);
+      return { row, bubble };
+    };
+
+    const renderSingleImage = (bubbleEl, fsPath) => {
+      const filename = lastSeg(fsPath);
+      const url = "/static/uploads/" + encodeURIComponent(filename);
+      bubbleEl.innerHTML =
+        `<img src="${url}" alt="${filename}" style="max-width:360px;height:auto;border-radius:8px;display:block;">`;
+    };
+
+    const renderDirGallery = async (bubbleEl, fsDirPath) => {
+      const dir = lastSeg(fsDirPath);
+      bubbleEl.innerHTML = "Loading images...";
+      try {
+        const res = await fetch(`/list_images?dir=${encodeURIComponent(dir)}`);
+        const { files = [] } = await res.json();
+        if (!files.length) { bubbleEl.innerHTML = "No images found."; return; }
+        const grid = document.createElement("div");
+        grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;max-width:480px";
+        files.forEach(fn => {
+          const url = `/static/uploads/${encodeURIComponent(dir)}/${encodeURIComponent(fn)}`;
+          const img = document.createElement("img");
+          img.src = url; img.alt = fn;
+          img.style.cssText = "width:100%;height:auto;border-radius:8px;display:block;object-fit:cover;";
+          grid.appendChild(img);
+        });
+        bubbleEl.innerHTML = "";
+        bubbleEl.appendChild(grid);
+      } catch (e) {
+        bubbleEl.innerHTML = "Failed to load directory images.";
+      }
+    };
+
+    const init = () => {
+      const form = document.querySelector(".chat-box form[action='/chat']");
+      const history = document.querySelector(".chat-history");
+      if (!form || !history) return;
+
+      const clone = form.cloneNode(true);
+      form.parentNode.replaceChild(clone, form);
+      const f = clone;
+
+      const ta  = f.querySelector("textarea[name='message']");
+      const btn = f.querySelector("button[type='submit']");
+
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const text = (ta?.value || "").trim();
+        if (!text) return;
+        btn?.setAttribute("disabled","disabled");
+
+        const { row: userRow, bubble: userBubble } = makeRow({ role:"user", html:text.replace(/\n/g,"<br>"), type:"" });
+        history.appendChild(userRow);
+
+        if (isImageFilePath(text)) {
+          renderSingleImage(userBubble, text);
+        } else if (isDirPath(text)) {
+          await renderDirGallery(userBubble, text);
+        }
+
+        const typing = makeRow({ role:"assistant", html:"...", type:"" });
+        history.appendChild(typing.row);
+
+        const textRaw = text || "";
+
+        const wantsscheduler =
+          /(?:glucose scheduler)/i.test(textRaw) &&
+          /(?:open|use|go|launch)/i.test(textRaw);
+
+        const FOOD_KEYWORDS = [...new Set([
+          ...carbLib.high,
+          ...carbLib.mediumHigh,
+          ...carbLib.medium,
+          ...carbLib.mediumLow,
+          ...carbLib.low,
+          ...carbLib.veryLow
+        ])];
+
+        const norm = s => (s||"").toLowerCase().replace(/\s+/g,"").trim();
+        const hay = norm(textRaw);
+
+        const matched = [];
+        const seen = new Set();
+        for (const kw of FOOD_KEYWORDS) {
+          const key = norm(kw);
+          if (!key) continue;
+          if (hay.includes(key) && !seen.has(kw)) {
+            matched.push(kw);
+            seen.add(kw);
+          }
+        }
+
+        {
+          const textRaw = (ta?.value || "").trim();
+          const hasschedulerWord = /(?:glucose scheduler)/i.test(textRaw);
+          const hasVerb = /(?:direct|schedule|open|use|go|launch)/i.test(textRaw);
+          const hasSlashCmd = /^\/(?:scheduler|glucose scheduler)\b/i.test(textRaw);
+
+          let matched = [];
+          const norm = s => (s||"").toLowerCase().replace(/\s+/g,"").trim();
+
+          if (typeof carbLib !== "undefined" && carbLib) {
+            const FOOD_KEYWORDS = [...new Set([
+              ...(carbLib.high||[]),
+              ...(carbLib.mediumHigh||[]),
+              ...(carbLib.medium||[]),
+              ...(carbLib.mediumLow||[]),
+              ...(carbLib.low||[]),
+              ...(carbLib.veryLow||[])
+            ])];
+            const hay = norm(textRaw);
+            const seen = new Set();
+            for (const kw of FOOD_KEYWORDS) {
+              const key = norm(kw);
+              if (key && hay.includes(key) && !seen.has(kw)) { matched.push(kw); seen.add(kw); }
+            }
+          } else {
+            matched = textRaw
+              .split(/[,/]|and|\s+/g)
+              .map(s=>s.trim())
+              .filter(s=>s && !/(glucose scheduler)/i.test(s));
+          }
+
+          const shouldGo = (hasschedulerWord && (hasVerb || matched.length>0)) || hasSlashCmd;
+
+          if (shouldGo) {
+            const lines = [...new Set(matched)].join("\n");
+
+            try { sessionStorage.setItem("scheduler:prefill", lines); } catch (e) {
+              console.warn("[scheduler] sessionStorage set failed:", e);
+            }
+
+            const url = matched.length > 0
+              ? `/?tab=scheduler&foods=${encodeURIComponent(matched.join(","))}`
+              : `/?tab=scheduler`;
+
+            e.preventDefault();
+            btn?.removeAttribute("disabled");
+            window.location.href = url;
+            return;
+          }
+        }
+
+        if (wantsscheduler && matched.length > 0) {
+          try { sessionStorage.setItem("scheduler:prefill", matched.join("\n")); } catch {}
+          const foodsParam = encodeURIComponent(matched.join(","));
+          const url = `/?tab=scheduler&foods=${foodsParam}`;
+
+          console.info("[scheduler] redirect with foods:", matched);
+
+          window.location.href = url;
+          btn?.removeAttribute("disabled");
+          return;
+        }
+
+        try {
+          const textRaw = (ta?.value || "").trim();
+          console.info("[scheduler:intercept] raw:", textRaw);
+
+          try {
+            sessionStorage.setItem("__scheduler_test__", "ok");
+            sessionStorage.removeItem("__scheduler_test__");
+            console.info("[scheduler:intercept] sessionStorage OK on", window.location.origin);
+          } catch (e) {
+            console.warn("[scheduler:intercept] sessionStorage not writable:", e);
+          }
+
+          const hasschedulerWord = /(?:glucose scheduler)/i.test(textRaw);
+          const hasVerb = /(?:direct|schedule|open|use|go|launch)/i.test(textRaw);
+          const hasSlashCmd = /^\/(?:scheduler|glucose scheduler)\b/i.test(textRaw);
+          console.info("[scheduler:intercept] hasschedulerWord:", hasschedulerWord, "hasVerb:", hasVerb, "hasSlashCmd:", hasSlashCmd);
+
+          let matched = [];
+          const norm = s => (s||"").toLowerCase().replace(/\s+/g,"").trim();
+
+          if (typeof carbLib !== "undefined" && carbLib) {
+            const FOOD_KEYWORDS = [...new Set([
+              ...(carbLib.high||[]),
+              ...(carbLib.mediumHigh||[]),
+              ...(carbLib.medium||[]),
+              ...(carbLib.mediumLow||[]),
+              ...(carbLib.low||[]),
+              ...(carbLib.veryLow||[])
+            ])];
+            const hay = norm(textRaw);
+            const seen = new Set();
+            for (const kw of FOOD_KEYWORDS) {
+              const key = norm(kw);
+              if (key && hay.includes(key) && !seen.has(kw)) { matched.push(kw); seen.add(kw); }
+            }
+            console.info("[scheduler:intercept] matched from carbLib:", matched);
+          } else {
+            matched = textRaw
+              .split(/[,/]|and|\s+/g)
+              .map(s=>s.trim())
+              .filter(s=>s && !/(glucose scheduler)/i.test(s));
+            console.info("[scheduler:intercept] matched (fallback):", matched);
+          }
+
+          const shouldGo = (hasschedulerWord && (hasVerb || matched.length>0)) || hasSlashCmd;
+          console.info("[scheduler:intercept] shouldGo:", shouldGo);
+
+          if (shouldGo && matched.length > 0) {
+            const lines = [...new Set(matched)].join("\n");
+
+            try {
+              sessionStorage.setItem("scheduler:prefill", lines);
+              console.info("[scheduler:intercept] sessionStorage set:", JSON.stringify(lines));
+            } catch (e) {
+              console.warn("[scheduler:intercept] setItem failed:", e);
+            }
+
+            const url = `/?tab=scheduler&foods=${encodeURIComponent(matched.join(","))}`;
+            console.info("[scheduler:intercept] redirect ->", url);
+
+            e.preventDefault();
+            btn?.removeAttribute("disabled");
+            window.location.href = url;
+            return;
+          }
+        } catch (err) {
+          console.error("[scheduler:intercept] error:", err);
+        }
+
+        const fd = new FormData(f);
+        try {
+          const r = await fetch("/chat_api", { method:"POST", body: fd });
+          const payload = await r.json();
+          typing.row.remove();
+
+          const reply = (payload?.assistant?.content || "Failed to generate response").replace(/\n/g,"<br>");
+          const type  = payload?.assistant?.type || "";
+          history.appendChild(makeRow({ role:"assistant", html:reply, type }).row);
+        } catch (err) {
+          typing.row.remove();
+          history.appendChild(makeRow({ role:"assistant", html:"Server error", type:"" }).row);
+        } finally {
+          ta.value = "";
+          btn?.removeAttribute("disabled");
+        }
+      });
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init, { once:true });
+    } else {
+      init();
+    }
+
+    const toMedia = async (el) => {
+      const txt = (el.innerText || "").trim();
+      if (!looksLikeFSPath(txt)) return;
+      if (isImageFilePath(txt)) return renderSingleImage(el, txt);
+      if (isDirPath(txt)) return renderDirGallery(el, txt);
+    };
+    document.querySelectorAll(".chat-bubble.user, .chat-bubble.assistant").forEach(toMedia);
+    const mo = new MutationObserver(ms => {
+      ms.forEach(m => m.addedNodes && m.addedNodes.forEach(n => {
+        if (!(n instanceof HTMLElement)) return;
+        n.querySelectorAll?.(".chat-bubble.user, .chat-bubble.assistant").forEach(toMedia);
+        if (n.matches?.(".chat-bubble.user, .chat-bubble.assistant")) toMedia(n);
+      }));
+    });
+    mo.observe(document.body, { childList:true, subtree:true });
+  })();
+</script>
+
+<script>
+(() => {
+  const nearBottom = (el, pad=48) =>
+    el.scrollHeight - el.scrollTop - el.clientHeight <= pad;
+
+  const stickToBottomIfNeeded = (el) => {
+    if (nearBottom(el)) el.scrollTop = el.scrollHeight;
+  };
+
+  const init = () => {
+    const hist = document.querySelector('.chat-history');
+    if (!hist) return;
+
+    const mo = new MutationObserver(() => stickToBottomIfNeeded(hist));
+    mo.observe(hist, { childList: true });
+  };
+
+  document.readyState === 'loading'
+    ? document.addEventListener('DOMContentLoaded', init, { once:true })
+    : init();
+})();
+</script>
+
+<script>
+(function(){
+  function setChatLayoutVars(){
+    const box = document.querySelector('.chat-box');
+    const input = document.querySelector('.chat-box .chat-input');
+    if(!box || !input) return;
+
+    const top = box.getBoundingClientRect().top;
+    const h = Math.max(0, window.innerHeight - top);
+    const inputH = input.getBoundingClientRect().height || 72;
+
+    document.documentElement.style.setProperty('--chatbox-h', h + 'px');
+    document.documentElement.style.setProperty('--chatinput-h', inputH + 'px');
+  }
+
+  const ro = new ResizeObserver(setChatLayoutVars);
+  window.addEventListener('DOMContentLoaded', () => {
+    setChatLayoutVars();
+    const input = document.querySelector('.chat-box .chat-input');
+    if (input) ro.observe(input);
+  });
+  window.addEventListener('load', setChatLayoutVars);
+  window.addEventListener('resize', setChatLayoutVars);
+})();
+</script>
+
+<script>
+(() => {
+  if (!navigator.mediaDevices || !window.MediaRecorder) {
+    document.addEventListener("DOMContentLoaded", () => {
+      const btn = document.querySelector(".chat-box .record-btn");
+      if (btn) {
+        btn.title = "This browser does not support MediaRecorder.";
+        btn.style.opacity = 0.6;
+        btn.style.cursor = "not-allowed";
+      }
+    });
+    return;
+  }
+
+  function pickMimeType() {
+    const cand = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+      'audio/ogg',
+      'audio/mp4'
+    ];
+    for (const t of cand) {
+      if (MediaRecorder.isTypeSupported?.(t)) return t;
+    }
+    return '';
+  }
+
+  let mediaStream = null;
+  let mediaRecorder = null;
+  let chunks = [];
+  let isRecording = false;
+
+  async function startRecording() {
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      alert("Microphone permission is required.");
+      return;
+    }
+
+    const mime = pickMimeType();
+    try {
+      mediaRecorder = new MediaRecorder(mediaStream, mime ? { mimeType: mime } : {});
+    } catch {
+      alert("Recording cannot be started in this browser.");
+      cleanupStream();
+      return;
+    }
+
+    chunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
+    mediaRecorder.onstop = uploadToSTT;
+    mediaRecorder.start(250);
+    isRecording = true;
+
+    const btn = document.querySelector(".chat-box .record-btn");
+    if (btn) btn.textContent = "Stop";
+  }
+
+  function stopRecording() {
+    if (!isRecording) return;
+    isRecording = false;
+    try { mediaRecorder?.stop(); } catch {}
+    const btn = document.querySelector(".chat-box .record-btn");
+    if (btn) btn.textContent = "Record";
+  }
+
+  function cleanupStream() {
+    mediaStream?.getTracks().forEach(t => t.stop());
+    mediaStream = null;
+  }
+
+  async function uploadToSTT() {
+    cleanupStream();
+
+    const blob = new Blob(chunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+    chunks = [];
+    const ext = blob.type.includes('mp4') ? 'm4a' : (blob.type.includes('ogg') ? 'ogg' : 'webm');
+
+    const fd = new FormData();
+    fd.append("file", blob, `record.${ext}`);
+
+    try {
+      const res = await fetch("/stt", { method: "POST", body: fd });
+      if (!res.ok) throw new Error(String(res.status));
+      const js = await res.json();
+      const text = (js?.text || "").trim();
+      if (!text) { alert("The transcription result is empty."); return; }
+      const ta = document.querySelector(".chat-box textarea[name='message']");
+      if (ta) ta.value = (ta.value ? ta.value + " " : "") + text;
+    } catch (e) {
+      alert("Transcription failed (server or network error).");
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.querySelector(".chat-box .record-btn");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      if (isRecording) stopRecording(); else startRecording();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.code === "Space") {
+        e.preventDefault();
+        if (isRecording) stopRecording(); else startRecording();
+      }
+    });
+  });
+})();
+</script>
+
+<script>
+(function () {
+  const chatForm = document.getElementById("chat-form");
+  const chatMessage = document.getElementById("chat-message");
+  const chatImage = document.getElementById("chat-image");
+  const imagePreview = document.getElementById("image-preview");
+  const imagePreviewBox = document.getElementById("image-preview-box");
+  const removeImageBtn = document.getElementById("remove-image-btn");
+  const chatMessages = document.getElementById("chat-messages");
+
+  if (!chatForm || !chatMessage || !chatMessages) return;
+
+  if (chatImage) {
+    chatImage.addEventListener("change", function () {
+      const file = this.files[0];
+      if (!file) {
+        if (imagePreview) imagePreview.src = "";
+        if (imagePreviewBox) imagePreviewBox.style.display = "none";
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        if (imagePreview) imagePreview.src = e.target.result;
+        if (imagePreviewBox) imagePreviewBox.style.display = "block";
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (removeImageBtn) {
+    removeImageBtn.addEventListener("click", function () {
+      if (chatImage) chatImage.value = "";
+      if (imagePreview) imagePreview.src = "";
+      if (imagePreviewBox) imagePreviewBox.style.display = "none";
+    });
+  }
+
+  function makeMessageRow(role, content, timestamp, imageUrl = null, type = "") {
+    const isUser = role === "user";
+    const row = document.createElement("div");
+    row.className = "chat-row";
+    row.style.display = "flex";
+    row.style.justifyContent = isUser ? "flex-end" : "flex-start";
+    row.style.marginBottom = "12px";
+
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.flexDirection = "column";
+    wrap.style.alignItems = isUser ? "flex-end" : "flex-start";
+
+    const bubble = document.createElement("div");
+    bubble.className = `chat-bubble ${role}`;
+    bubble.style.padding = "10px 14px
